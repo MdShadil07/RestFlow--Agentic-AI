@@ -825,7 +825,9 @@ async function generateTasks(sessionId: string, signals: string[], session: ISes
   const now = new Date();
   const totalDays = deadline ? Math.max(1, Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 14;
   const profileConfig = ROLE_PROFILE_LIBRARY[profile] || ROLE_PROFILE_LIBRARY.general;
-  const blueprint = makeTopicBlueprint(profile, signals, profileConfig.focusAreas, session.role, session.company);
+  const companyProfile = inferCompanyProfile(session.company);
+  const experienceLevel = inferExperienceLevel(session, signals);
+  const blueprint = makeTopicBlueprint(profile, companyProfile, signals, profileConfig.focusAreas, session.role, session.company, experienceLevel);
 
   const totalMinutes = blueprint.reduce((sum, item) => sum + item.estimatedMinutes, 0);
   const minutesPerDay = Math.max(45, Math.round(totalMinutes / totalDays));
@@ -879,7 +881,7 @@ async function generateTasks(sessionId: string, signals: string[], session: ISes
     progress: 82,
   });
 
-  if (skills.length === 0) {
+  if (signals.length === 0) {
     await recordSessionActivity(sessionId, {
       stage: 'plan-finalization',
       message: 'No direct skill matches were found, so the agent is building a general-purpose interview plan from your goal prompt.',
@@ -1036,13 +1038,16 @@ export async function orchestrateSession(sessionId: string) {
       session.sharedContext = { cognitiveEvents: [] };
     }
 
+    const latestSession = await SessionModel.findById(sessionId).lean().exec();
+    const mergedSharedContext = latestSession?.sharedContext || session.sharedContext;
+
     await SessionModel.updateOne({ _id: sessionId }, {
       $set: {
         tasks,
         status: 'completed',
         progress: 100,
         currentStep: 'completed',
-        sharedContext: session.sharedContext,
+        sharedContext: mergedSharedContext,
       },
       $push: {
         activityLog: {

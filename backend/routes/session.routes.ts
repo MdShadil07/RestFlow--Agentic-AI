@@ -157,10 +157,41 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
     const session = await SessionModel.findById(req.params.id).exec();
     if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
     if (session.userId !== req.userId) return res.status(403).json({ success: false, message: 'Forbidden' });
-    res.json({ success: true, data: session });
+
+    // Convert document to plain object and unsanitize skill keys for response
+    const result = session.toObject();
+    try {
+      const { unsanitizeSkillConfidence } = await import('../models/Session');
+      if (result.sharedContext?.userProfile?.skillConfidence) {
+        result.sharedContext.userProfile.skillConfidence = unsanitizeSkillConfidence(result.sharedContext.userProfile.skillConfidence);
+      }
+    } catch {
+      // ignore if helper unavailable
+    }
+
+    res.json({ success: true, data: result });
   } catch (err: any) {
     console.error('Get session error:', err.message || err);
     res.status(500).json({ success: false, message: 'Error fetching session' });
+  }
+});
+
+// Development-only debug route: return unsanitized userProfile without auth (local only)
+router.get('/debug/:id', async (req: Request, res: Response) => {
+  if (process.env.NODE_ENV !== 'development') return res.status(403).json({ success: false, message: 'Forbidden' });
+  try {
+    const session = await SessionModel.findById(req.params.id).exec();
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+    const result = session.toObject();
+    const { unsanitizeSkillConfidence } = await import('../models/Session');
+    if (result.sharedContext?.userProfile?.skillConfidence) {
+      result.sharedContext.userProfile.skillConfidence = unsanitizeSkillConfidence(result.sharedContext.userProfile.skillConfidence);
+    }
+    console.log(`[SessionDebug:${req.params.id}] unsanitized userProfile:`, result.sharedContext?.userProfile);
+    res.json({ success: true, data: result.sharedContext?.userProfile || null });
+  } catch (err: any) {
+    console.error('Get session debug error:', err.message || err);
+    res.status(500).json({ success: false, message: 'Error fetching session debug' });
   }
 });
 

@@ -78,6 +78,14 @@ export default function TaskSessionPage() {
   }, [id]);
 
   const tasks = session?.tasks ?? [];
+  const sortedTasks = [...tasks].sort((left, right) => {
+    const leftPriority = typeof left.priority === 'number' ? left.priority : 99;
+    const rightPriority = typeof right.priority === 'number' ? right.priority : 99;
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+    const leftDue = left.dueDate ? new Date(left.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+    const rightDue = right.dueDate ? new Date(right.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+    return leftDue - rightDue;
+  });
   const progress = session?.progress ?? 100;
   const totalMinutes = tasks.reduce((sum, task) => sum + (task.estimatedMinutes ?? 0), 0);
   const agentOneNote = session?.activityLog?.find((entry) => entry.stage === "agent-1-planner") ?? session?.activityLog?.find((entry) => entry.stage === "resume-signals");
@@ -140,6 +148,13 @@ export default function TaskSessionPage() {
             <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-500">Full preparation workspace</p>
           </div>
         </div>
+        <button
+          onClick={() => navigate(`/dashboard/research/${id}`)}
+          className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100"
+        >
+          Research report
+          <ChevronRight className="h-4 w-4" />
+        </button>
       </header>
 
       <main className="relative overflow-hidden p-6 lg:p-10">
@@ -213,7 +228,7 @@ export default function TaskSessionPage() {
           <div className="grid gap-4">
             {loading && <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500">Loading tasks…</div>}
             {!loading && tasks.length === 0 && <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-slate-500">No tasks were generated.</div>}
-            {tasks.map((task, index) => (
+            {sortedTasks.map((task, index) => (
               <motion.div
                 key={`${task.title}-${index}`}
                 initial={{ opacity: 0, y: 14 }}
@@ -280,11 +295,12 @@ export default function TaskSessionPage() {
                     <div className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-900">
                       <Layers3 className="h-4 w-4" /> Deep dive topics
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {task.subtopics.map((subtopic) => (
-                        <span key={subtopic} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                          {subtopic}
-                        </span>
+                    <div className="space-y-2">
+                      {task.subtopics.map((subtopic, subtopicIndex) => (
+                        <div key={subtopic} className="flex items-start gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-black text-white">{subtopicIndex + 1}</span>
+                          <span>{subtopic}</span>
+                        </div>
                       ))}
                     </div>
                   </div>

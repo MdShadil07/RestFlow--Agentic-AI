@@ -1,4 +1,6 @@
 import { initializeProfileAgent } from '../agents/profile.agent';
+import { initializeCompanyAgent } from '../agents/company.agent';
+import { initializeResearchAgent } from '../agents/research.agent';
 
 export const AGENTS = {
   profile: {
@@ -6,16 +8,20 @@ export const AGENTS = {
     description: 'Analyzes user resume and extracts skills, experience, and knowledge gaps',
     initialize: initializeProfileAgent,
   },
-  // Placeholder for future agents
+  company: {
+    name: 'CompanyAgent',
+    description: 'Analyzes company-specific interview patterns and requirements',
+    initialize: initializeCompanyAgent,
+  },
+  research: {
+    name: 'ResearchAgent',
+    description: 'Builds company and role specific research packs for preparation guidance',
+    initialize: initializeResearchAgent,
+  },
   planning: {
     name: 'PlanningAgent',
     description: 'Creates prioritized task roadmap based on user profile and company requirements',
     initialize: async () => console.log('[PlanningAgent] Placeholder initialized'),
-  },
-  company: {
-    name: 'CompanyAgent',
-    description: 'Analyzes company-specific interview patterns and requirements',
-    initialize: async () => console.log('[CompanyAgent] Placeholder initialized'),
   },
   gap: {
     name: 'GapAgent',

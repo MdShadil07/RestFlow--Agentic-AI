@@ -31,6 +31,18 @@ function extractSkills(text: string): { skills: string[]; confidence: Map<string
   };
 }
 
+function sanitizeKey(key: string): string {
+  return key.replace(/\./g, '__dot__');
+}
+
+function mapToObject(map: Map<string, number>): { [k: string]: number } {
+  const obj: { [k: string]: number } = {};
+  for (const [k, v] of map.entries()) {
+    obj[sanitizeKey(k)] = v;
+  }
+  return obj;
+}
+
 function assessExperienceLevel(text: string): string {
   const yearsMatch = text.match(/(\d+)\s*(?:years?|yrs?)\s*(?:of\s*)?(?:experience|exp)/i);
   const years = yearsMatch ? parseInt(yearsMatch[1], 10) : 0;
@@ -130,7 +142,7 @@ export async function initializeProfileAgent() {
       // Build user profile
       const userProfile: IUserProfile = {
         skills,
-        skillConfidence: confidence,
+        skillConfidence: mapToObject(confidence),
         weaknesses,
         strengths,
         experienceLevel,
@@ -165,7 +177,7 @@ export async function initializeProfileAgent() {
       agentBus.emit('profile.analyzed', {
         sessionId: payload.sessionId,
         skills,
-        skillConfidence: confidence,
+        skillConfidence: mapToObject(confidence),
         weaknesses,
         strengths,
       });

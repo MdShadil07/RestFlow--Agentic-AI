@@ -14,9 +14,10 @@ export interface CognitiveEventPayload {
 export interface AgentBusEvents {
   'session.start': { sessionId: string; userId: string; resumeText: string; company?: string; role?: string };
   'profile.analyze': { sessionId: string; resumeText: string; extraContext?: string };
-  'profile.analyzed': { sessionId: string; skills: string[]; skillConfidence: Map<string, number>; weaknesses: string[]; strengths: string[] };
+  'profile.analyzed': { sessionId: string; skills: string[]; skillConfidence: { [skill: string]: number }; weaknesses: string[]; strengths: string[] };
   'company.analyze': { sessionId: string; company: string; role: string };
   'company.analyzed': { sessionId: string; focusAreas: string[]; difficulty: number };
+  'research.analyzed': { sessionId: string; companyProfile: string; roleProfile: string; priorityTopics: string[] };
   'gap.detected': { sessionId: string; gaps: Map<string, number> };
   'tasks.generate': { sessionId: string; profile: string; focusAreas: string[] };
   'tasks.generated': { sessionId: string; taskCount: number };
