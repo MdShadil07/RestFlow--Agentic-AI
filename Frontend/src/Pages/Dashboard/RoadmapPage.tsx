@@ -8,7 +8,7 @@ import {
   BrainCircuit, TrendingUp, Clock, Target, 
   ChevronRight, ChevronDown, PlayCircle, MoreHorizontal, Loader2, Calendar, AlertTriangle,
   ArrowRight, Sparkles, Layers3, BadgeCheck, BookOpen, AlertCircle, HelpCircle, Trash2,
-  Folder, FolderOpen, FileText, Square, Download
+  Folder, FolderOpen, FileText, Square, Download, ZoomIn, ZoomOut, Maximize
 } from "lucide-react";
 // @ts-ignore
 import AgentThinkingLoader from "../../components/agentThinkingLoader";
@@ -92,6 +92,7 @@ export default function RoadmapPage() {
   const [searchQuery, setSearchQuery] = useState("");
   // Mastery checklist tracked by local storage
   const [checkedSubtopics, setCheckedSubtopics] = useState<Record<string, boolean>>({});
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   // Load subtopic checked state on mount
   useEffect(() => {
@@ -631,8 +632,8 @@ export default function RoadmapPage() {
                   </p>
                 </div>
               ) : activeTab === "tree" ? (
-                
-                /* Notion-style collapsible Tree view */
+                <>
+                {/* Notion-style collapsible Tree view */}
                 <div className="flex-1 max-w-4xl mx-auto w-full flex flex-col space-y-6 print:block">
                   {/* Control Toolbar */}
                   <div className="flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm shrink-0 print:hidden">
@@ -667,498 +668,288 @@ export default function RoadmapPage() {
                       >
                         {isAllExpanded ? "Collapse All" : "Expand All"}
                       </button>
-                    </div>
-                  </div>
-
-                  {/* Root Goal Banner */}
-                  <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-3xl p-6 shadow-xl border border-indigo-950/20 relative overflow-hidden shrink-0">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-[radial-gradient(circle,rgba(99,102,241,0.15)_0%,transparent_70%)] rounded-full pointer-events-none" />
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-extrabold tracking-widest text-indigo-400 uppercase bg-indigo-900/50 border border-indigo-500/20 px-3 py-1 rounded-full">
-                          Active Swarm Roadmap
-                        </span>
-                        <h3 className="text-xl font-black tracking-tight mt-2">{selectedSession.role || "Custom Roadmap"}</h3>
-                        <p className="text-xs text-slate-300 font-semibold">
-                          Target Goal: {selectedSession.extraContext || selectedSession.role}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2.5">
-                        {selectedSession.company && (
-                          <div className="bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-200">
-                            🏢 {selectedSession.company}
-                          </div>
-                        )}
-                        <div className="bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-200">
-                          ⚡ {selectedSession.competency || "Intermediate"}
-                        </div>
+                      <div className="flex items-center gap-1 ml-4 border-l pl-4 border-slate-200">
+                        <button onClick={() => setZoomLevel(z => Math.max(0.4, z - 0.1))} className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200"><ZoomOut className="w-4 h-4" /></button>
+                        <span className="text-xs font-bold text-slate-500 w-10 text-center">{Math.round(zoomLevel * 100)}%</span>
+                        <button onClick={() => setZoomLevel(z => Math.min(2.5, z + 0.1))} className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200"><ZoomIn className="w-4 h-4" /></button>
+                        <button onClick={() => setZoomLevel(1)} className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200"><Maximize className="w-4 h-4" /></button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Interactive Tree Body */}
-                  <div className="space-y-4 print:space-y-6">
-                    {/* Iterate Categories */}
-                    {Object.entries(categoryGroups).map(([categoryName, catTasks]) => {
-                      const expandedKey = `cat:${categoryName}`;
-                      const isCatExpanded = expandedNodes[expandedKey] ?? true;
-                      
-                      // Filter tasks in category if search is present
-                      const filteredCatTasks = catTasks.filter(t => 
-                        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()))
-                      );
-
-                      if (filteredCatTasks.length === 0 && searchQuery) {
-                        return null;
-                      }
-
-                      // Compute completion statistics
-                      const totalTasksInCat = catTasks.length;
-                      const completedTasksInCat = catTasks.filter(t => t.prepStatus === "completed").length;
-                      const catCompletionPercent = totalTasksInCat > 0 ? Math.round((completedTasksInCat / totalTasksInCat) * 100) : 0;
-
-                      return (
-                        <div key={categoryName} className="bg-white/60 border border-slate-200/50 rounded-2xl p-4 shadow-sm backdrop-blur-sm transition-all hover:bg-white duration-300 print:shadow-none print:border-slate-300 print:break-inside-avoid print:bg-white print:p-0">
-                          
-                          {/* Category Header Row (Notion-style collapsible folder) */}
-                          <div 
-                            onClick={() => toggleNode(expandedKey)}
-                            className="flex items-center justify-between cursor-pointer select-none group print:mb-4"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="p-1 rounded-md text-slate-400 group-hover:text-indigo-600 transition-colors">
-                                {isCatExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                              </div>
-                              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
-                                {isCatExpanded ? <FolderOpen className="w-4 h-4" /> : <Folder className="w-4 h-4" />}
-                              </div>
-                              <div>
-                                <h4 className="font-extrabold text-sm text-slate-800 tracking-tight capitalize group-hover:text-indigo-600 transition-colors">
-                                  {categoryName}
-                                </h4>
-                                <span className="text-[10px] font-bold text-slate-400 block mt-0.5">
-                                  {completedTasksInCat} of {totalTasksInCat} Tasks Prep
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Category completion stats & progress bar */}
-                            <div className="flex items-center gap-4 print:hidden">
-                              <div className="hidden sm:flex flex-col items-end gap-1">
-                                <span className="text-[10px] font-bold text-slate-500">{catCompletionPercent}% Ready</span>
-                                <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
-                                  <div 
-                                    className="h-full bg-emerald-500 transition-all duration-500" 
-                                    style={{ width: `${catCompletionPercent}%` }}
-                                  />
+                  
+                  {/* Interactive Tree Body (Graphical Hierarchy) */}
+                  <div className="roadmap-tree-wrapper overflow-x-auto pb-20 pt-8" style={{ minHeight: "60vh" }}>
+                    <div 
+                      className="roadmap-tree flex justify-center origin-top transition-transform duration-200" 
+                      style={{ transform: `scale(${zoomLevel})`, width: "max-content", margin: "0 auto" }}
+                    >
+                      <ul>
+                        <li>
+                          {/* Root Node */}
+                          <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-3xl p-6 shadow-xl border border-indigo-950/20 relative overflow-hidden inline-block text-left min-w-[320px] max-w-[400px]">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-[radial-gradient(circle,rgba(99,102,241,0.15)_0%,transparent_70%)] rounded-full pointer-events-none" />
+                            <div className="relative z-10">
+                              <span className="text-[10px] font-extrabold tracking-widest text-indigo-400 uppercase bg-indigo-900/50 border border-indigo-500/20 px-3 py-1 rounded-full">
+                                Active Swarm Roadmap
+                              </span>
+                              <h3 className="text-xl font-black tracking-tight mt-3">{selectedSession.role || "Custom Roadmap"}</h3>
+                              <p className="text-xs text-slate-300 font-semibold mb-4 mt-1">
+                                Target Goal: {selectedSession.extraContext || selectedSession.role}
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedSession.company && (
+                                  <div className="bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl text-[10px] font-bold text-indigo-200">
+                                    🏢 {selectedSession.company}
+                                  </div>
+                                )}
+                                <div className="bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl text-[10px] font-bold text-indigo-200">
+                                  ⚡ {selectedSession.competency || "Intermediate"}
                                 </div>
                               </div>
                             </div>
                           </div>
 
-                          {/* Nested task cards within category */}
-                          {(isCatExpanded || window.matchMedia("print").matches) && (
-                            <div className="border-l border-dashed border-indigo-200/70 ml-[23px] pl-5 mt-4 space-y-4 relative print:border-slate-300 print:ml-4">
-                              {filteredCatTasks.map((task, localIdx) => {
-                                const originalIdx = tasks.findIndex(t => t.title === task.title);
-                                const isTaskExpanded = expandedNodes[`task:${originalIdx}`] ?? false;
-                                const isCompleted = task.prepStatus === "completed";
-                                const isRunning = task.prepStatus === "running";
-                                const isFailed = task.prepStatus === "failed";
+                          {/* Categories (Children of Root) */}
+                          <ul>
+                            {Object.entries(categoryGroups).map(([categoryName, catTasks], cIdx) => {
+                              const expandedKey = `cat:${categoryName}`;
+                              const isCatExpanded = expandedNodes[expandedKey] ?? true;
+                              
+                              const filteredCatTasks = catTasks.filter(t => 
+                                t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                              );
 
-                                return (
-                                  <div key={localIdx} className="relative group/task">
-                                    
-                                    {/* Line anchor node bullet */}
-                                    <div className="absolute -left-[27px] top-4 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-300 flex items-center justify-center z-10 print:hidden">
-                                      <div className={`w-1.5 h-1.5 rounded-full ${
-                                        isCompleted ? "bg-emerald-500" : isRunning ? "bg-amber-500 animate-ping" : "bg-slate-300"
-                                      }`} />
-                                    </div>
+                              if (filteredCatTasks.length === 0 && searchQuery) return null;
 
-                                    {/* Task Row Card */}
-                                    <div 
-                                      className={`p-4 rounded-xl border transition-all duration-300 print:shadow-none print:border-slate-200 print:break-inside-avoid print:bg-white ${
-                                        isTaskExpanded 
-                                          ? "bg-slate-50 border-indigo-300/80 shadow-inner" 
-                                          : "bg-white border-slate-200 hover:border-indigo-200 hover:shadow-md hover:shadow-indigo-50/20"
-                                      }`}
-                                    >
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div 
-                                          onClick={() => toggleNode(`task:${originalIdx}`)}
-                                          className="flex-1 min-w-0 flex items-start gap-2.5 cursor-pointer select-none"
-                                        >
-                                          <div className="mt-0.5 text-slate-400 hover:text-indigo-600 transition-colors">
-                                            {isTaskExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                                          </div>
-                                          
-                                          <div className="min-w-0">
-                                            <h5 className={`font-bold text-xs text-slate-800 tracking-tight leading-snug ${isCompleted ? "group-hover/task:text-indigo-600" : ""}`}>
-                                              {task.title}
-                                            </h5>
-                                            
-                                            {task.description && (
-                                              <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-1 line-clamp-1">
-                                                {task.description}
-                                              </p>
-                                            )}
+                              const totalTasksInCat = catTasks.length;
+                              const completedTasksInCat = catTasks.filter(t => t.prepStatus === "completed").length;
+                              const catCompletionPercent = totalTasksInCat > 0 ? Math.round((completedTasksInCat / totalTasksInCat) * 100) : 0;
 
-                                            <div className="flex flex-wrap items-center gap-2 mt-2">
-                                              <span className="text-[9px] font-extrabold text-slate-400 bg-slate-100/80 px-2 py-0.5 rounded flex items-center gap-1 uppercase tracking-wider">
-                                                <Clock className="w-3 h-3 text-slate-400" />
-                                                {task.estimatedMinutes || 30} mins
-                                              </span>
-                                              {task.focusArea && (
-                                                <span className="text-[9px] font-extrabold text-indigo-600 bg-indigo-50/50 border border-indigo-100/40 px-2 py-0.5 rounded uppercase tracking-wider">
-                                                  🎯 {task.focusArea}
-                                                </span>
-                                              )}
-                                              {task.priority !== undefined && (
-                                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider ${
-                                                  task.priority >= 3 
-                                                    ? "bg-rose-50 text-rose-600 border border-rose-100" 
-                                                    : "bg-slate-50 text-slate-500 border border-slate-100"
-                                                }`}>
-                                                  Priority {task.priority}
-                                                </span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        {/* Inline Deep Dive triggers & status badges */}
-                                        <div className="flex items-start gap-2 shrink-0 print:hidden">
-                                          {isCompleted ? (
-                                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 flex items-center gap-1 select-none">
-                                              <BadgeCheck className="w-3.5 h-3.5" /> Deep Div-ed
-                                            </span>
-                                          ) : isRunning ? (
-                                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-100 flex items-center gap-1.5 animate-pulse select-none">
-                                              <Loader2 className="w-3 h-3 animate-spin" /> Deep Diving...
-                                            </span>
-                                          ) : isFailed ? (
-                                            <button 
-                                              onClick={() => handleDeepDive(originalIdx)}
-                                              className="text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-full border border-rose-100 flex items-center gap-1 transition-colors"
-                                            >
-                                              <AlertTriangle className="w-3 h-3" /> Retry Deep Dive
-                                            </button>
-                                          ) : (
-                                            <button
-                                              onClick={() => handleDeepDive(originalIdx)}
-                                              disabled={busyIndex === originalIdx}
-                                              className="text-[10px] font-black text-indigo-700 bg-indigo-50 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-xl border border-indigo-100 transition-all shadow-sm flex items-center gap-1"
-                                            >
-                                              <Sparkles className="w-3 h-3" /> Swarm Deep Dive
-                                            </button>
-                                          )}
-
-                                          <button
-                                            onClick={() => setSelectedTaskIndex(originalIdx)}
-                                            title="Open side details drawer"
-                                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                                          >
-                                            <MoreHorizontal className="w-4 h-4" />
-                                          </button>
-                                        </div>
+                              return (
+                                <li key={categoryName}>
+                                  {/* Category Node */}
+                                  <div 
+                                    onClick={() => toggleNode(expandedKey)}
+                                    className="bg-white border border-indigo-200 rounded-2xl p-4 shadow-sm transition-all hover:border-indigo-400 duration-300 cursor-pointer inline-block text-left min-w-[260px] max-w-[280px] mx-4 relative"
+                                  >
+                                    <div className="flex items-center gap-3 mb-2">
+                                      <div className="p-1.5 rounded-xl bg-indigo-50 text-indigo-600">
+                                        {isCatExpanded ? <FolderOpen className="w-4 h-4" /> : <Folder className="w-4 h-4" />}
                                       </div>
-
-                                      {/* Expanded Subtopics & Checklist */}
-                                      <AnimatePresence>
-                                        {(isTaskExpanded || window.matchMedia("print").matches) && (
-                                          <motion.div
-                                            initial={{ opacity: 0, height: 0 }}
-                                            animate={{ opacity: 1, height: "auto" }}
-                                            exit={{ opacity: 0, height: 0 }}
-                                            className="overflow-hidden print:!h-auto print:!opacity-100"
-                                          >
-                                            {/* Concept Coaching Summary */}
-                                            {isCompleted && task.prepSummary && (
-                                              <div className="bg-white rounded-xl border border-slate-200/60 p-4 shadow-sm relative overflow-hidden mt-4">
-                                                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-indigo-50/40 to-transparent pointer-events-none" />
-                                                <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-2">
-                                                  <BookOpen className="w-4 h-4 text-indigo-600" />
-                                                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Conceptual Study Guide</span>
-                                                </div>
-                                                <p className="text-xs font-semibold text-slate-600 leading-relaxed whitespace-pre-line">
-                                                  {task.prepSummary}
-                                                </p>
-                                              </div>
-                                            )}
-
-                                            {/* Interactive Subtopics Checklist */}
-                                            {isCompleted && task.subtopics && task.subtopics.length > 0 && (
-                                              <div className="bg-white rounded-xl border border-slate-200/60 p-4 shadow-sm mt-4">
-                                                <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-3">
-                                                  <Layers3 className="w-4 h-4 text-indigo-600" />
-                                                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Mastery Checklist</span>
-                                                  <span className="text-[9px] font-bold text-slate-400 ml-auto print:hidden">Click to mark mastered</span>
-                                                </div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                  {task.subtopics.map((sub, sidx) => {
-                                                    const subKey = `${selectedSessionId}:${originalIdx}:subtopic:${sidx}`;
-                                                    const isSubChecked = checkedSubtopics[subKey] || false;
-                                                    
-                                                    return (
-                                                      <div 
-                                                        key={sidx}
-                                                        onClick={() => toggleSubtopic(subKey)}
-                                                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer select-none transition-all duration-200 ${
-                                                          isSubChecked 
-                                                            ? "bg-emerald-50/40 border-emerald-200 text-emerald-800" 
-                                                            : "bg-slate-50 border-slate-200/60 text-slate-600 hover:bg-white hover:border-indigo-300"
-                                                        }`}
-                                                      >
-                                                        {isSubChecked ? (
-                                                          <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                        ) : (
-                                                          <Square className="w-4 h-4 text-slate-400 shrink-0" />
-                                                        )}
-                                                        <span className="text-[11px] font-bold tracking-tight truncate">
-                                                          {sub}
-                                                        </span>
-                                                      </div>
-                                                    );
-                                                  })}
-                                                </div>
-                                              </div>
-                                            )}
-
-                                            {/* Prep Action Steps Checklist */}
-                                            {isCompleted && task.prepSteps && task.prepSteps.length > 0 && (
-                                              <div className="bg-white rounded-xl border border-slate-200/60 p-4 shadow-sm mt-4">
-                                                <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-3">
-                                                  <CheckSquare className="w-4 h-4 text-indigo-600" />
-                                                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Action Steps Checklist</span>
-                                                </div>
-                                                <div className="space-y-2">
-                                                  {task.prepSteps.map((step, stepIdx) => {
-                                                    const stepKey = `${selectedSessionId}:${originalIdx}:step:${stepIdx}`;
-                                                    const isStepChecked = checkedSubtopics[stepKey] || false;
-
-                                                    return (
-                                                      <div 
-                                                        key={stepIdx}
-                                                        onClick={() => toggleSubtopic(stepKey)}
-                                                        className="flex items-start gap-2.5 cursor-pointer group/step"
-                                                      >
-                                                        <div className="mt-0.5 shrink-0">
-                                                          {isStepChecked ? (
-                                                            <CheckSquare className="w-3.5 h-3.5 text-emerald-600" />
-                                                          ) : (
-                                                            <Square className="w-3.5 h-3.5 text-slate-400 group-hover/step:text-indigo-400" />
-                                                          )}
-                                                        </div>
-                                                        <span className={`text-[11px] font-semibold leading-relaxed ${
-                                                          isStepChecked ? "text-slate-400 line-through" : "text-slate-600"
-                                                        }`}>
-                                                          {step}
-                                                        </span>
-                                                      </div>
-                                                    );
-                                                  })}
-                                                </div>
-                                              </div>
-                                            )}
-                                          </motion.div>
-                                        )}
-                                      </AnimatePresence>
+                                      <div>
+                                        <h4 className="font-extrabold text-sm text-slate-800 tracking-tight capitalize group-hover:text-indigo-600 transition-colors line-clamp-1">
+                                          {categoryName}
+                                        </h4>
+                                        <span className="text-[10px] font-bold text-slate-400 block mt-0.5">
+                                          {completedTasksInCat} of {totalTasksInCat} Tasks
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50 mt-3">
+                                      <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${catCompletionPercent}%` }} />
                                     </div>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          )}
 
-                        </div>
-                      );
-                    })}
+                                  {/* Task Nodes (Children of Category) */}
+                                  {(isCatExpanded || window.matchMedia("print").matches) && (
+                                    <ul>
+                                      {filteredCatTasks.map((task, localIdx) => {
+                                        const originalIdx = tasks.findIndex(t => t.title === task.title);
+                                        const isTaskExpanded = expandedNodes[`task:${originalIdx}`] ?? false;
+                                        const isCompleted = task.prepStatus === "completed";
+                                        const isRunning = task.prepStatus === "running";
+                                        const isFailed = task.prepStatus === "failed";
+
+                                        return (
+                                          <li key={localIdx}>
+                                            <div 
+                                              className={`bg-white border rounded-2xl p-4 shadow-sm transition-all duration-300 inline-block text-left min-w-[280px] max-w-[320px] mx-2 relative ${
+                                                isCompleted ? "border-emerald-200 hover:border-emerald-400 shadow-emerald-50/20" : "border-slate-200 hover:border-indigo-300"
+                                              }`}
+                                            >
+                                              <div className="flex items-start justify-between gap-2">
+                                                <div 
+                                                  onClick={() => toggleNode(`task:${originalIdx}`)}
+                                                  className="flex-1 min-w-0 cursor-pointer"
+                                                >
+                                                  <div className="flex items-center gap-2 mb-1.5">
+                                                    {isCompleted ? (
+                                                      <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 flex items-center gap-1 uppercase tracking-widest">
+                                                        <BadgeCheck className="w-3 h-3" /> Mastered
+                                                      </span>
+                                                    ) : isRunning ? (
+                                                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 flex items-center gap-1 animate-pulse uppercase tracking-widest">
+                                                        <Loader2 className="w-3 h-3 animate-spin" /> Syncing
+                                                      </span>
+                                                    ) : (
+                                                      <span className="text-[9px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 uppercase tracking-widest">
+                                                        Pending
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <h5 className="font-bold text-[13px] text-slate-800 leading-snug">
+                                                    {task.title}
+                                                  </h5>
+                                                  {task.description && (
+                                                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1.5 line-clamp-2">
+                                                      {task.description}
+                                                    </p>
+                                                  )}
+                                                </div>
+                                              </div>
+
+                                              {/* Action Buttons */}
+                                              <div className="mt-3 pt-3 border-t border-slate-100/80 flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className="text-[9px] font-extrabold text-slate-400 bg-slate-100/80 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                    <Clock className="w-3 h-3" /> {task.estimatedMinutes || 30}m
+                                                  </span>
+                                                </div>
+                                                
+                                                <div className="print:hidden">
+                                                  {!isCompleted && !isRunning && (
+                                                    <button 
+                                                      onClick={(e) => { e.stopPropagation(); handleDeepDive(originalIdx); }}
+                                                      className="text-[9px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-1 rounded-md shadow-sm transition-colors flex items-center gap-1"
+                                                    >
+                                                      <Sparkles className="w-3 h-3" /> Deep Dive
+                                                    </button>
+                                                  )}
+                                                  {isFailed && (
+                                                    <button 
+                                                      onClick={(e) => { e.stopPropagation(); handleDeepDive(originalIdx); }}
+                                                      className="text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded-md transition-colors"
+                                                    >
+                                                      Retry
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              </div>
+
+                                              {/* Expanded Details within the Box */}
+                                              <AnimatePresence>
+                                                {(isTaskExpanded || window.matchMedia("print").matches) && (
+                                                  <motion.div
+                                                    initial={{ opacity: 0, height: 0 }}
+                                                    animate={{ opacity: 1, height: "auto" }}
+                                                    exit={{ opacity: 0, height: 0 }}
+                                                    className="overflow-hidden print:!h-auto print:!opacity-100"
+                                                  >
+                                                    {isCompleted && task.prepSummary && (
+                                                      <div className="mt-4 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
+                                                        <div className="flex items-center gap-1.5 mb-2">
+                                                          <BookOpen className="w-3 h-3 text-indigo-500" />
+                                                          <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-700">Study Guide</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-600 leading-relaxed font-medium">
+                                                          {task.prepSummary}
+                                                        </p>
+                                                      </div>
+                                                    )}
+
+                                                    {isCompleted && task.subtopics && task.subtopics.length > 0 && (
+                                                      <div className="mt-3">
+                                                        <div className="flex items-center gap-1.5 mb-2 px-1">
+                                                          <Layers3 className="w-3 h-3 text-slate-400" />
+                                                          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Checklist</span>
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                          {task.subtopics.map((sub, sidx) => {
+                                                            const subKey = `${selectedSessionId}:${originalIdx}:subtopic:${sidx}`;
+                                                            const isSubChecked = checkedSubtopics[subKey] || false;
+                                                            return (
+                                                              <div 
+                                                                key={sidx}
+                                                                onClick={(e) => { e.stopPropagation(); toggleSubtopic(subKey); }}
+                                                                className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer select-none transition-colors ${
+                                                                  isSubChecked ? "bg-emerald-50/40 border-emerald-200 text-emerald-800" : "bg-slate-50 border-slate-200 text-slate-600 hover:border-indigo-300"
+                                                                }`}
+                                                              >
+                                                                <div className="mt-0.5 shrink-0">
+                                                                  {isSubChecked ? <CheckSquare className="w-3.5 h-3.5 text-emerald-500" /> : <Square className="w-3.5 h-3.5 text-slate-300" />}
+                                                                </div>
+                                                                <span className={`text-[10px] font-semibold leading-snug ${isSubChecked ? "line-through opacity-70" : ""}`}>
+                                                                  {sub}
+                                                                </span>
+                                                              </div>
+                                                            );
+                                                          })}
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                  </motion.div>
+                                                )}
+                                              </AnimatePresence>
+                                            </div>
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </li>
+                      </ul>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                
-                /* Timeline Checklist / List view */
-                <div className="flex-1 max-w-3xl mx-auto w-full space-y-4">
-                  {tasks.map((task, idx) => {
-                    const isSelected = selectedTaskIndex === idx;
-                    const isCompleted = task.prepStatus === "completed";
-                    const isRunning = task.prepStatus === "running";
-
-                    return (
-                      <div
-                        key={idx}
-                        onClick={() => setSelectedTaskIndex(idx)}
-                        className={`w-full bg-white border rounded-2xl p-5 cursor-pointer flex items-center justify-between gap-4 transition-all hover:border-slate-300 ${
-                          isSelected ? "border-indigo-400 ring-2 ring-indigo-50 shadow-sm" : "border-slate-200/80"
-                        }`}
-                      >
-                        <div className="flex items-center gap-4 min-w-0">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                            isCompleted ? "bg-emerald-50 text-emerald-600" : isRunning ? "bg-amber-50 text-amber-600 animate-pulse" : "bg-slate-50 text-slate-400"
-                          }`}>
-                            {isCompleted ? <BadgeCheck className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
-                          </div>
-                          
-                          <div className="min-w-0">
-                            <h4 className="text-sm font-extrabold text-slate-900 truncate">{task.title}</h4>
-                            <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400 font-semibold">
-                              <span>{task.category || "General"}</span>
-                              <span className="w-1 h-1 rounded-full bg-slate-200" />
-                              <span>{task.estimatedMinutes} mins</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <ChevronRight className="w-4 h-4 text-slate-400" />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            
-            {/* Task Detail Pane (Fixed right drawer overlay/panel inside the workspace) */}
-            <AnimatePresence>
-              {selectedTaskIndex !== null && tasks[selectedTaskIndex] && (() => {
-                const task = tasks[selectedTaskIndex];
-                const isCompleted = task.prepStatus === "completed";
-                const isRunning = task.prepStatus === "running";
-                const isFailed = task.prepStatus === "failed";
-
-                return (
-                  <motion.div
-                    initial={{ x: 380, opacity: 0.9 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: 380, opacity: 0.9 }}
-                    transition={{ type: "spring", damping: 25, stiffness: 220 }}
-                    className="w-full md:w-96 border-l border-slate-200 bg-white h-full flex flex-col shrink-0 relative z-20 shadow-2xl"
-                  >
-                    {/* Header */}
-                    <div className="h-16 px-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                          isCompleted ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : isRunning ? "bg-amber-50 text-amber-700 animate-pulse" : "bg-slate-100 text-slate-600"
-                        }`}>
-                          {task.prepStatus || "Pending"}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => setSelectedTaskIndex(null)}
-                        className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* Content Scroll Area */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                      
-                      <div>
-                        <h4 className="text-base font-black text-slate-900 leading-snug">{task.title}</h4>
-                        {task.description && (
-                          <p className="text-xs font-semibold leading-relaxed text-slate-500 mt-2">{task.description}</p>
-                        )}
-                      </div>
-
-                      {/* Technical Details Grid */}
-                      <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Category</span>
-                          <span className="text-xs font-extrabold text-slate-700 capitalize mt-0.5 block">{task.category || "General"}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Estimated Time</span>
-                          <span className="text-xs font-extrabold text-slate-700 mt-0.5 block">{task.estimatedMinutes} mins</span>
-                        </div>
-                      </div>
-
-                      {/* Launch Deep Dive Trigger */}
-                      {!isCompleted && (
-                        <div className="bg-indigo-50/30 border border-indigo-100/50 rounded-2xl p-5 text-center">
-                          <Sparkles className="w-6 h-6 text-indigo-600 mx-auto mb-2" />
-                          <h5 className="text-xs font-extrabold text-indigo-950">Unlock Deep-Dive Details</h5>
-                          <p className="text-[11px] font-semibold text-slate-500 mt-1 mb-4 leading-relaxed">
-                            Deploy our technical expert Depth Agent to generate subtopics, mistakes, guide checklists, and revision prompts.
-                          </p>
-                          <button
-                            onClick={() => handleDeepDive(selectedTaskIndex)}
-                            disabled={busyIndex === selectedTaskIndex}
-                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
-                          >
-                            {busyIndex === selectedTaskIndex ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Compiling details...
-                              </>
-                            ) : (
-                              <>
-                                <Layers3 className="w-3.5 h-3.5" /> Initialize Swarm Deep Dive
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Compiled AI Guide */}
-                      {isCompleted && task.prepSummary && (
-                        <div className="space-y-4">
-                          <div className="border-t border-slate-100 pt-4">
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-700 flex items-center gap-1.5 mb-2">
-                              <BookOpen className="w-3.5 h-3.5" /> Study Guide Notes
-                            </span>
-                            <p className="text-xs font-semibold text-slate-600 leading-relaxed bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100/50">
-                              {task.prepSummary}
-                            </p>
-                          </div>
-
-                          {/* Action steps */}
-                          {task.prepSteps && task.prepSteps.length > 0 && (
-                            <div>
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-2">Preparation Steps</span>
-                              <div className="space-y-2">
-                                {task.prepSteps.map((step, sidx) => (
-                                  <div key={sidx} className="flex gap-2.5 bg-slate-50 border border-slate-100 rounded-xl p-2.5 items-start">
-                                    <span className="w-5 h-5 bg-white border rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 text-indigo-700 shadow-sm">
-                                      {sidx + 1}
-                                    </span>
-                                    <span className="text-xs text-slate-600 font-semibold leading-relaxed pt-0.5">{step}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Subtopics list */}
-                          {task.subtopics && task.subtopics.length > 0 && (
-                            <div>
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-2">Subtopics to Master</span>
-                              <div className="flex flex-wrap gap-2">
-                                {task.subtopics.map((sub, subIdx) => (
-                                  <span key={subIdx} className="bg-slate-100 border border-slate-200/50 text-slate-700 text-xs font-semibold px-2.5 py-1 rounded-xl">
-                                    {sub}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })()}
-              <style>{`
-                @media print {
-                  @page { margin: 1cm; }
-                  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white !important; }
-                  aside, header, .print\\:hidden { display: none !important; }
-                  main, .flex-1, .overflow-y-auto { overflow: visible !important; height: auto !important; position: static !important; }
-                  .print\\:break-inside-avoid { break-inside: avoid; }
-                  .print\\:shadow-none { box-shadow: none !important; }
-                }
-              `}</style>
-            </AnimatePresence>
+                  </div>
+                <style>{`
+                  .roadmap-tree ul {
+                    padding-top: 24px; position: relative;
+                    transition: all 0.3s;
+                    display: flex; justify-content: center;
+                    align-items: flex-start;
+                  }
+                  .roadmap-tree li {
+                    float: left; text-align: center;
+                    list-style-type: none; position: relative;
+                    padding: 24px 12px 0 12px;
+                    transition: all 0.3s;
+                  }
+                  .roadmap-tree li::before, .roadmap-tree li::after {
+                    content: ''; position: absolute; top: 0; right: 50%;
+                    border-top: 2px solid #cbd5e1;
+                    width: 50%; height: 24px;
+                  }
+                  .roadmap-tree li::after {
+                    right: auto; left: 50%;
+                    border-left: 2px solid #cbd5e1;
+                  }
+                  .roadmap-tree li:only-child::after, .roadmap-tree li:only-child::before {
+                    display: none;
+                  }
+                  .roadmap-tree li:only-child { padding-top: 0; }
+                  .roadmap-tree li:first-child::before, .roadmap-tree li:last-child::after {
+                    border: 0 none;
+                  }
+                  .roadmap-tree li:last-child::before {
+                    border-right: 2px solid #cbd5e1;
+                    border-radius: 0 8px 0 0;
+                  }
+                  .roadmap-tree li:first-child::after {
+                    border-radius: 8px 0 0 0;
+                  }
+                  .roadmap-tree ul ul::before {
+                    content: ''; position: absolute; top: 0; left: 50%;
+                    border-left: 2px solid #cbd5e1;
+                    width: 0; height: 24px;
+                  }
+                  @media print {
+                    @page { margin: 1cm; size: landscape; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white !important; }
+                    aside, header, .print\\:hidden { display: none !important; }
+                    main, .flex-1, .overflow-y-auto, .roadmap-tree-wrapper { overflow: visible !important; height: auto !important; position: static !important; }
+                    .roadmap-tree { transform: scale(0.65) !important; transform-origin: top left !important; margin: 0 !important; width: 100% !important; }
+                    .print\\:break-inside-avoid { break-inside: avoid; }
+                    .print\\:shadow-none { box-shadow: none !important; }
+                  }
+                `}</style>
+                </>
+              ) : null}
 
           </div>
         </div>
