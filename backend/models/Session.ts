@@ -133,6 +133,9 @@ const TaskSchema = new Schema<ITask>({
   notes: { type: [String], default: [] },
   commonMistakes: { type: [String], default: [] },
   teachingPrompts: { type: [String], default: [] },
+  prepStatus: { type: String, default: 'idle' },
+  prepSummary: { type: String },
+  prepSteps: { type: [String], default: [] },
 });
 
 const ActivityLogSchema = new Schema<IActivityLogEntry>({

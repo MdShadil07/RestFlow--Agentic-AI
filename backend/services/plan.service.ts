@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../integrations/supabase/client.server";
+import { GoogleGenerativeAI, Schema, SchemaType as Type } from "@google/generative-ai";
 
 // Calls a generative AI model to get a structured plan back.
 export async function generatePlanForUser(payload: {
@@ -50,7 +51,7 @@ export async function generatePlanForUser(payload: {
     type: "plan_ready",
   });
 
-  return { goalId: goal.id, taskCount: plan.tasks.length, summary: plan.summary };
+  return { goalId: goal.id, tasksScheduled: plan.tasks.length };
 }
 
 async function callPlannerLLM(payload: {
@@ -63,139 +64,99 @@ async function callPlannerLLM(payload: {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
 
-  const daysUntil = Math.max(
-    1,
-    Math.ceil((new Date(payload.interviewDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
-  );
+  const system = `You are an expert interview coach. Your job is to build a structured, day-by-day preparation plan.
+You will be provided with:
+- The candidate's resume/skills
+- The target role
+- The target company (optional)
+- The interview date
+- Specific focus areas requested (optional)
 
-  const system = `You are Synapse, an elite interview prep coach. Build a prioritized, time-boxed study plan  along with that for each topic in depth topic wise plan like if 
-  you the user has mentioned java than all the important topic he must master and learn for the specific role and company as as well as company wise resources tailored to the candidate's resume and target role.
+Rules:
+1. Break down the preparation into actionable, specific tasks.
+2. Distribute tasks sensibly between now and the interview date.
+3. If a company is provided, include company-specific prep (e.g., leadership principles for Amazon).
+4. Provide a 1-paragraph summary of the strategy.
+5. Provide the structured tasks exactly matching the required schema.`;
+
+  const user = `Build an interview prep plan for:
+Role: ${payload.targetRole}
+Company: ${payload.company || "Unknown"}
+Interview Date: ${payload.interviewDate}
+Focus Areas: ${payload.focusAreas?.join(", ") || "None specified"}
+Resume/Context: ${payload.resumeText.slice(0, 3000)}`;
+
+  const genAI = new GoogleGenerativeAI(apiKey);
   
-  Rules:
-  - Priority is an integer 1 (highest impact, do first) to 5 (lowest).
-  - Schedule tasks evenly between today and the interview date (${daysUntil} days). Use ISO 8601 timestamps.
-  - Front-load the highest-priority items (priority 1-2) in the first half of the window.
-  - Each task must be concrete, actionable, and standalone (not "study X" — instead "Build a debounced search input in React in 45 min").
-  - Generate 8-14 tasks total. Cover: strengths to sharpen, gaps to close, behavioral prep, and a mock interview the day before.
-  - For category, use short tags like "frontend", "system-design", "behavioral", "dsa", "hr", "communication", "mock".
-  - estimated_minutes between 20 and 120.`;
-
-  const user = `RESUME:
-  ${payload.resumeText.slice(0, 6000)}
-  
-  TARGET ROLE: ${payload.targetRole}
-  COMPANY: ${payload.company || "N/A"}
-  INTERVIEW DATE: ${payload.interviewDate}
-  FOCUS AREAS: ${(payload.focusAreas || []).join(", ") || "auto-detect from resume gaps"}
-  TODAY: ${new Date().toISOString()}
-  
-  Build the plan now.`;
-
-  const requestSummary = {
-    resumeChars: payload.resumeText.length,
-    resumePreview: payload.resumeText.replace(/\s+/g, " ").trim().slice(0, 240),
-    targetRole: payload.targetRole,
-    company: payload.company || "N/A",
-    interviewDate: payload.interviewDate,
-    focusAreas: payload.focusAreas || [],
-    daysUntil,
-  };
-
-  console.log("[PlanService] Gemini request", requestSummary);
-
-  const body = {
-    model: "google/gemini-3-flash-preview",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    tools: [
-      {
-        type: "function",
-        function: {
-          name: "submit_plan",
-          description: "Submit the prioritized interview prep plan.",
-          parameters: {
-            type: "object",
-            properties: {
-              summary: {
-                type: "string",
-                description: "Two-sentence overview tailored to candidate.",
-              },
-              tasks: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    title: { type: "string" },
-                    description: { type: "string" },
-                    category: { type: "string" },
-                    priority: { type: "integer", minimum: 1, maximum: 5 },
-                    estimated_minutes: { type: "integer", minimum: 15, maximum: 180 },
-                    scheduled_for: { type: "string", description: "ISO 8601 timestamp" },
-                  },
-                  required: [
-                    "title",
-                    "description",
-                    "category",
-                    "priority",
-                    "estimated_minutes",
-                    "scheduled_for",
-                  ],
-                  additionalProperties: false,
-                },
-              },
-            },
-            required: ["summary", "tasks"],
-            additionalProperties: false,
+  const schema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      summary: { type: Type.STRING },
+      tasks: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            description: { type: Type.STRING },
+            category: { type: Type.STRING },
+            priority: { type: Type.INTEGER },
+            estimated_minutes: { type: Type.INTEGER },
+            scheduled_for: { type: Type.STRING, description: "ISO date string" }
           },
-        },
-      },
-    ],
-    tool_choice: { type: "function", function: { name: "submit_plan" } },
+          required: ["title", "description", "category", "priority", "estimated_minutes", "scheduled_for"]
+        }
+      }
+    },
+    required: ["summary", "tasks"]
   };
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    },
-  );
-
-  if (res.status === 429) throw new Error("Rate limit hit. Please wait a minute and try again.");
-  if (res.status === 402)
-    throw new Error("AI credits exhausted. Add funds in Settings → Workspace → Usage.");
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.log("[PlanService] Gemini error response", { status: res.status, body: errorText.slice(0, 1000) });
-    throw new Error(`AI gateway error ${res.status}: ${errorText}`);
-  }
-
-  const json = await res.json();
-  const call = json.choices?.[0]?.message?.tool_calls?.[0];
-  if (!call) throw new Error("AI did not return a plan");
-  const args =
-    typeof call.function.arguments === "string"
-      ? JSON.parse(call.function.arguments)
-      : call.function.arguments;
-
-  console.log("[PlanService] Gemini response", {
-    summaryPreview: typeof args.summary === "string" ? args.summary.slice(0, 240) : "",
-    taskCount: Array.isArray(args.tasks) ? args.tasks.length : 0,
-    taskTitles: Array.isArray(args.tasks) ? args.tasks.slice(0, 5).map((task: any) => task.title) : [],
+  const model = genAI.getGenerativeModel({
+    model: "gemini-3.1-flash-lite",
+    systemInstruction: system
   });
 
-  return args as {
-    summary: string;
-    tasks: Array<{
-      title: string;
-      description: string;
-      category: string;
-      priority: number;
-      estimated_minutes: number;
-      scheduled_for: string;
-    }>;
-  };
+  let lastError: any;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: user }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: schema,
+        }
+      });
+
+      const response = result.response;
+      const text = response.text();
+      const args = JSON.parse(text);
+
+      console.log("[PlanService] Gemini response", {
+        summaryPreview: typeof args.summary === "string" ? args.summary.slice(0, 240) : "",
+        taskCount: Array.isArray(args.tasks) ? args.tasks.length : 0,
+        taskTitles: Array.isArray(args.tasks) ? args.tasks.slice(0, 5).map((task: any) => task.title) : [],
+      });
+
+      return args as {
+        summary: string;
+        tasks: Array<{
+          title: string;
+          description: string;
+          category: string;
+          priority: number;
+          estimated_minutes: number;
+          scheduled_for: string;
+        }>;
+      };
+    } catch (error) {
+      lastError = error;
+      console.warn(`[PlanService] Attempt ${attempt} failed:`, error);
+      if (attempt < 3) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+  }
+
+  console.error("[PlanService] All retry attempts failed. Gemini SDK error:", lastError);
+  throw new Error("The Agent is currently busy or offline. Please try again in a few moments.");
 }

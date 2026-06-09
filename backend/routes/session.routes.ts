@@ -151,6 +151,19 @@ router.post('/', authenticateToken, upload.single('resume'), async (req: Request
   }
 });
 
+// List all sessions for the authenticated user
+router.get('/', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const sessions = await SessionModel.find({ userId: req.userId })
+      .sort({ createdAt: -1 })
+      .exec();
+    res.json({ success: true, data: sessions });
+  } catch (err: any) {
+    console.error('List sessions error:', err.message || err);
+    res.status(500).json({ success: false, message: 'Error fetching sessions' });
+  }
+});
+
 // Get session details
 router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -211,6 +224,41 @@ router.post('/:id/tasks/:index/preparation', authenticateToken, async (req: Requ
   } catch (err: any) {
     console.error('Generate task preparation error:', err.message || err);
     res.status(500).json({ success: false, message: err?.message || 'Unable to create preparation' });
+  }
+});
+
+router.post('/:id/research', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const session = await SessionModel.findById(req.params.id).exec();
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+    if (session.userId !== req.userId) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+    // Trigger ResearchAgent asynchronously
+    const { runResearchAgentForSession } = await import('../agents/research.agent');
+    
+    runResearchAgentForSession(session._id.toString()).catch((err) => {
+      console.error('[SessionRoute] Background research agent error:', err);
+    });
+
+    res.json({ success: true, message: 'Research agent triggered successfully' });
+  } catch (err: any) {
+    console.error('Trigger research agent error:', err.message || err);
+    res.status(500).json({ success: false, message: err?.message || 'Unable to trigger research' });
+  }
+});
+
+// Delete a session
+router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const session = await SessionModel.findById(req.params.id).exec();
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+    if (session.userId !== req.userId) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+    await SessionModel.deleteOne({ _id: req.params.id }).exec();
+    res.json({ success: true, message: 'Session deleted successfully' });
+  } catch (err: any) {
+    console.error('Delete session error:', err.message || err);
+    res.status(500).json({ success: false, message: 'Error deleting session' });
   }
 });
 

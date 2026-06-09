@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI, Schema, SchemaType as Type } from "@google/generative-ai";
 import SessionModel, { ISession, ITask, ICognitiveEvent } from '../models/Session';
 import agentBus from '../lib/agent-bus';
 
@@ -6,129 +7,6 @@ const KNOWN_SKILLS = [
   'react', 'javascript', 'typescript', 'node', 'express', 'mongodb', 'css', 'html', 'redux', 'graphql', 'docker', 'kubernetes', 'aws', 'sql', 'python', 'java'
 ];
 
-const ROADMAP_LIBRARY: Record<string, { title: string; description: string; focusArea: string; category: string; estimatedMinutes: number; priority: number; resources: string[] }[]> = {
-  java: [
-    {
-      title: 'Java language fundamentals',
-      description: 'Review OOP, access modifiers, exception handling, generics, and collections basics.',
-      focusArea: 'Language core',
-      category: 'Foundation',
-      estimatedMinutes: 90,
-      priority: 1,
-      resources: ['https://docs.oracle.com/javase/tutorial/'],
-    },
-    {
-      title: 'JVM internals and memory model',
-      description: 'Study heap, stack, garbage collection, class loading, and the Java Memory Model.',
-      focusArea: 'Runtime behavior',
-      category: 'Foundation',
-      estimatedMinutes: 120,
-      priority: 1,
-      resources: ['https://docs.oracle.com/javase/specs/'],
-    },
-    {
-      title: 'Collections, streams, and lambdas',
-      description: 'Practice functional style transformations, comparator usage, and collection trade-offs.',
-      focusArea: 'Coding fluency',
-      category: 'Coding',
-      estimatedMinutes: 90,
-      priority: 2,
-      resources: ['https://docs.oracle.com/javase/8/docs/api/java/util/stream/package-summary.html'],
-    },
-    {
-      title: 'Concurrency and multithreading',
-      description: 'Cover thread safety, synchronization, executors, locks, and concurrent utilities.',
-      focusArea: 'Concurrency',
-      category: 'Advanced',
-      estimatedMinutes: 120,
-      priority: 1,
-      resources: ['https://docs.oracle.com/javase/tutorial/essential/concurrency/'],
-    },
-    {
-      title: 'Spring and backend APIs',
-      description: 'Refresh dependency injection, REST design, validation, and service layering.',
-      focusArea: 'Frameworks',
-      category: 'Frameworks',
-      estimatedMinutes: 100,
-      priority: 2,
-      resources: ['https://spring.io/guides'],
-    },
-    {
-      title: 'SQL and persistence design',
-      description: 'Review schema design, joins, indexing, transactions, and JPA trade-offs.',
-      focusArea: 'Data layer',
-      category: 'Database',
-      estimatedMinutes: 85,
-      priority: 2,
-      resources: ['https://www.postgresql.org/docs/'],
-    },
-    {
-      title: 'System design interview patterns',
-      description: 'Break down caching, queues, scalability, and API boundaries with concrete examples.',
-      focusArea: 'Architecture',
-      category: 'System Design',
-      estimatedMinutes: 130,
-      priority: 1,
-      resources: ['https://github.com/donnemartin/system-design-primer'],
-    },
-    {
-      title: 'Mock interview and revision loop',
-      description: 'Run a timed mock and revisit the weakest topics before the deadline.',
-      focusArea: 'Final review',
-      category: 'Simulation',
-      estimatedMinutes: 75,
-      priority: 1,
-      resources: ['https://www.pramp.com', 'https://interviewing.io'],
-    },
-  ],
-  general: [
-    {
-      title: 'Core fundamentals and role mapping',
-      description: 'Convert the resume and goal prompt into the high-signal topics that matter most.',
-      focusArea: 'Topic discovery',
-      category: 'Discovery',
-      estimatedMinutes: 75,
-      priority: 1,
-      resources: ['https://www.indeed.com/career-advice/resumes-cover-letters'],
-    },
-    {
-      title: 'Primary skill gap review',
-      description: 'Target the 2-3 biggest knowledge gaps blocking interview readiness.',
-      focusArea: 'Gap analysis',
-      category: 'Foundation',
-      estimatedMinutes: 90,
-      priority: 1,
-      resources: ['https://www.geeksforgeeks.org/'],
-    },
-    {
-      title: 'Coding and implementation drills',
-      description: 'Practice implementation patterns and interview-style problem solving.',
-      focusArea: 'Practice',
-      category: 'Coding',
-      estimatedMinutes: 100,
-      priority: 2,
-      resources: ['https://leetcode.com'],
-    },
-    {
-      title: 'System design and trade-off thinking',
-      description: 'Outline the architecture topics, bottlenecks, and trade-offs to explain clearly.',
-      focusArea: 'Architecture',
-      category: 'System Design',
-      estimatedMinutes: 110,
-      priority: 1,
-      resources: ['https://github.com/donnemartin/system-design-primer'],
-    },
-    {
-      title: 'Mock interview and wrap-up',
-      description: 'Close with a timed simulation and a final revision pass.',
-      focusArea: 'Final review',
-      category: 'Simulation',
-      estimatedMinutes: 80,
-      priority: 1,
-      resources: ['https://www.pramp.com'],
-    },
-  ],
-};
 
 const MULTI_AGENT_STACK = ['Planner Agent', 'Depth Agent', 'Resource Agent', 'Support Agent'];
 
@@ -518,195 +396,7 @@ function buildSkillSignals(session: ISession) {
   };
 }
 
-function makeTopicBlueprint(
-  profile: RoleProfileKey,
-  companyProfile: CompanyProfileKey,
-  signals: string[],
-  focusAreas: string[],
-  role: string | undefined,
-  company: string | undefined,
-  experienceLevel: string,
-): BlueprintItem[] {
-  const profileConfig = ROLE_PROFILE_LIBRARY[profile] || ROLE_PROFILE_LIBRARY.general;
-  const companyConfig = COMPANY_PROFILE_LIBRARY[companyProfile] || COMPANY_PROFILE_LIBRARY.general;
-  const selectedTopics = uniqueStrings([
-    ...profileConfig.priorityTopics,
-    ...companyConfig.emphasisTopics,
-    ...signals.slice(0, 8),
-  ]);
 
-  const dependencyOrder = uniqueStrings([
-    ...profileConfig.priorityTopics,
-    ...companyConfig.emphasisTopics,
-    'system design',
-    'backend',
-    'frontend',
-    'sql',
-    'javascript',
-    'typescript',
-    'react',
-    'node',
-  ]);
-  const dependencyRank = new Map(dependencyOrder.map((topic, index) => [topic, index]));
-
-  const baseBlueprints = selectedTopics
-    .map((topic) => {
-      const domain = resolveTopicKey(topic, focusAreas.join(' '));
-      const template = ROADMAP_LIBRARY[domain] || ROADMAP_LIBRARY.general;
-      const top = template[0];
-      const relatedFocus = focusAreas[0] || top.focusArea;
-      const topicModifier = topic === 'system design' || topic === 'backend' ? 1.18 : topic === 'frontend' ? 1.08 : 1;
-      const experienceModifier = experienceLevel === 'senior' ? 1.15 : experienceLevel === 'junior' ? 0.92 : 1;
-      const companyModifier = companyProfile === 'enterprise' || companyProfile === 'fintech' ? 1.12 : companyProfile === 'startup' ? 0.96 : 1;
-      return {
-        title: `${topic.charAt(0).toUpperCase() + topic.slice(1)} for ${role || profileConfig.label}`,
-        description: `${top.description} Tailor it to ${company || 'the target company'} and the responsibilities implied by ${role || 'the role'}. This plan assumes a ${experienceLevel} interview depth for ${companyConfig.label.toLowerCase()}.`,
-        focusArea: relatedFocus,
-        category: top.category,
-        estimatedMinutes: Math.max(60, Math.round(top.estimatedMinutes * topicModifier * experienceModifier * companyModifier)),
-        priority: topic === 'system design' || topic === 'backend' || companyProfile === 'fintech' ? 1 : top.priority,
-        resources: top.resources,
-        topic,
-      };
-    })
-    .sort((left, right) => {
-      const leftRank = dependencyRank.get(left.topic) ?? 99;
-      const rightRank = dependencyRank.get(right.topic) ?? 99;
-      if (left.priority !== right.priority) return left.priority - right.priority;
-      if (leftRank !== rightRank) return leftRank - rightRank;
-      return right.estimatedMinutes - left.estimatedMinutes;
-    });
-
-  const uniqueByTopic = new Map<string, BlueprintItem>();
-  for (const item of baseBlueprints) {
-    if (!uniqueByTopic.has(item.topic)) uniqueByTopic.set(item.topic, item as unknown as BlueprintItem);
-  }
-
-  return [...uniqueByTopic.values()].slice(0, 6);
-}
-
-const TOPIC_DEEP_DIVE_LIBRARY: Record<string, {
-  subtopics: string[];
-  notes: string[];
-  commonMistakes: string[];
-  teachingPrompts: string[];
-  resources: string[];
-}> = {
-  concurrency: {
-    subtopics: ['thread lifecycle', 'synchronization primitives', 'deadlocks and starvation', 'volatile and memory visibility', 'executors and thread pools', 'locks, atomics, and concurrent collections'],
-    notes: [
-      'Start with the mental model: one shared state, many threads, and rules for safe coordination.',
-      'Use a concrete race-condition example before explaining the fix.',
-      'Compare synchronized blocks, locks, and atomic classes by scope and trade-off.',
-    ],
-    commonMistakes: [
-      'Confusing thread safety with performance.',
-      'Skipping deadlock detection and lock ordering.',
-      'Talking about concurrency without showing how state is shared.',
-    ],
-    teachingPrompts: [
-      'Explain why this code can fail under contention.',
-      'Show the smallest safe synchronization boundary.',
-      'Describe what happens when many requests hit the same shared resource.',
-    ],
-    resources: ['https://docs.oracle.com/javase/tutorial/essential/concurrency/', 'https://www.baeldung.com/java-concurrency'],
-  },
-  'system-design': {
-    subtopics: ['requirements gathering', 'API boundaries', 'caching', 'queues and async flow', 'database scaling', 'trade-offs and failure modes'],
-    notes: [
-      'Always begin with requirements, scale, and constraints before proposing a design.',
-      'Explain one bottleneck and one mitigation for each major subsystem.',
-      'Keep the design narrative tied to the user goal and deadline.',
-    ],
-    commonMistakes: [
-      'Jumping to architecture before clarifying requirements.',
-      'Over-designing without a scaling justification.',
-      'Ignoring failure handling and data consistency.',
-    ],
-    teachingPrompts: [
-      'What breaks first at 10x traffic?',
-      'Where would you cache and why?',
-      'How do writes remain reliable when a downstream service is slow?',
-    ],
-    resources: ['https://github.com/donnemartin/system-design-primer', 'https://www.pramp.com'],
-  },
-  backend: {
-    subtopics: ['REST design', 'validation', 'service layering', 'dependency injection', 'authentication boundaries', 'error handling'],
-    notes: [
-      'Explain why each layer exists and what business rule it owns.',
-      'Tie API responses to concrete validation and authorization concerns.',
-      'Use one worked example that follows a request from controller to persistence.',
-    ],
-    commonMistakes: [
-      'Mixing transport logic with business rules.',
-      'Skipping error paths and validation details.',
-      'Failing to explain why the API contract matters.',
-    ],
-    teachingPrompts: [
-      'Walk me through a request from controller to database.',
-      'What validation happens before the service layer runs?',
-      'How would you explain this endpoint to another engineer?',
-    ],
-    resources: ['https://spring.io/guides', 'https://www.postgresql.org/docs/'],
-  },
-  database: {
-    subtopics: ['schema design', 'joins', 'indexes', 'transactions', 'isolation levels', 'query trade-offs'],
-    notes: [
-      'Start from query patterns, then design the schema and indexes around them.',
-      'Explain the cost of joins, indexes, and transactional guarantees in plain language.',
-      'Show one example of a slow query and how to improve it.',
-    ],
-    commonMistakes: [
-      'Adding indexes without a query reason.',
-      'Ignoring transaction boundaries.',
-      'Discussing schema without workload context.',
-    ],
-    teachingPrompts: [
-      'Why would this query be slow?',
-      'What index would you add and why?',
-      'How does the transaction protect data here?',
-    ],
-    resources: ['https://www.postgresql.org/docs/', 'https://www.geeksforgeeks.org/sql-tutorial/'],
-  },
-  java: {
-    subtopics: ['OOP fundamentals', 'collections', 'generics', 'exception handling', 'JVM memory model', 'garbage collection'],
-    notes: [
-      'Ground the explanation in how Java actually runs code on the JVM.',
-      'Use examples that contrast compile-time generics with runtime type erasure.',
-      'Relate collections choices to performance and mutability.',
-    ],
-    commonMistakes: [
-      'Over-focusing on syntax instead of runtime behavior.',
-      'Explaining JVM concepts without memory and GC context.',
-      'Treating all collection types as interchangeable.',
-    ],
-    teachingPrompts: [
-      'Why choose this collection type?',
-      'What happens in memory when this code runs?',
-      'How would you prevent this exception?',
-    ],
-    resources: ['https://docs.oracle.com/javase/tutorial/', 'https://docs.oracle.com/javase/specs/'],
-  },
-  general: {
-    subtopics: ['core concepts', 'practice patterns', 'trade-offs', 'revision checklist', 'timed mock answers'],
-    notes: [
-      'Keep the topic anchored to the resume and goal prompt.',
-      'Prefer small, high-signal study chunks over broad reading.',
-      'Use examples and self-explanation after each practice block.',
-    ],
-    commonMistakes: [
-      'Studying topics that do not map to the target role.',
-      'Reading without active recall or practice.',
-      'Skipping review of weak areas before the deadline.',
-    ],
-    teachingPrompts: [
-      'What is the one thing you want to remember from this topic?',
-      'How would you explain this to a peer in two minutes?',
-      'Where does this topic show up in your actual interview goal?',
-    ],
-    resources: ['https://www.indeed.com/career-advice/resumes-cover-letters', 'https://leetcode.com'],
-  },
-};
 
 function uniqueStrings(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
@@ -722,48 +412,6 @@ function resolveTopicKey(title: string, focusArea?: string) {
   return 'general';
 }
 
-function buildTaskDepth(item: { title: string; focusArea: string; description: string; resources: string[] }, profile: RoleProfileKey, companyProfile: CompanyProfileKey) {
-  const key = resolveTopicKey(item.title, item.focusArea);
-  const pack = TOPIC_DEEP_DIVE_LIBRARY[key] || TOPIC_DEEP_DIVE_LIBRARY.general;
-  const profileConfig = ROLE_PROFILE_LIBRARY[profile] || ROLE_PROFILE_LIBRARY.general;
-  const companyConfig = COMPANY_PROFILE_LIBRARY[companyProfile] || COMPANY_PROFILE_LIBRARY.general;
-  const baseTerm = normalizeText(item.title).split(/\s+/).filter(Boolean)[0] || item.focusArea;
-  const profileSpecific = profileConfig.depthTopics[key] || profileConfig.depthTopics[baseTerm] || [];
-  const companySpecific = companyConfig.depthHints[key] || companyConfig.depthHints[baseTerm] || [];
-  const titleWords = item.title
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((word) => word.length > 3)
-    .slice(0, 4);
-
-  const inferredSubtopics = uniqueStrings([
-    ...companySpecific,
-    ...profileSpecific,
-    ...pack.subtopics,
-    ...titleWords,
-    item.focusArea,
-  ]);
-  const inferredNotes = uniqueStrings([
-    `Connect the explanation back to ${item.focusArea}.`,
-    `Tie the topic to ${profileConfig.label.toLowerCase()} interview expectations.`,
-    `Emphasize the interview shape used by ${companyConfig.label.toLowerCase()}.`,
-    ...pack.notes,
-  ]);
-  const teachingPrompts = uniqueStrings([
-    ...pack.teachingPrompts,
-    `Explain how ${item.title.toLowerCase()} appears in the context of ${item.focusArea}.`,
-    `What does production-grade implementation of ${item.title.toLowerCase()} require for ${companyConfig.label.toLowerCase()}?`,
-  ]);
-
-  return {
-    topicKey: key,
-    subtopics: inferredSubtopics,
-    notes: inferredNotes,
-    commonMistakes: pack.commonMistakes,
-    teachingPrompts,
-    resources: uniqueStrings([...item.resources, ...pack.resources]),
-  };
-}
 
 function summarizeTasks(tasks: ITask[]) {
   return tasks.slice(0, 5).map((task) => ({
@@ -819,51 +467,121 @@ async function recordSessionActivity(sessionId: string, args: { stage: string; m
   await SessionModel.updateOne({ _id: sessionId }, update).exec();
 }
 
+async function callTaskGeneratorLLM(session: ISession, signals: string[], profile: string): Promise<any[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-3.1-flash-lite",
+    systemInstruction: `You are Synapse, an elite interview prep coach. Your job is to build a highly accurate, prioritized, and time-boxed roadmap of study tasks tailored EXACTLY to the candidate's TARGET ROLE and COMPANY.
+
+  CRITICAL INSTRUCTIONS:
+  1. COMPANY SPECIFICITY: If a company is provided, you MUST inject known interview patterns for that company (e.g., LeetCode difficulty, System Design expectations, behavioral/cultural values like Amazon Leadership Principles or Google's Googlyness).
+  2. ROLE SPECIFICITY: Every technical task must be highly relevant to the Target Role and its daily technical demands.
+  3. ROBUST COVERAGE: Generate a comprehensive roadmap of 8 to 14 tasks total. These should span language/framework deep-dives, core algorithms/data structures, system design/architecture, database design, behavioral values, and mock practices.
+  4. ACTIONABLE: Tasks must mention the company or role where relevant (e.g., "Practice Microsoft-style System Design for a distributed cache" instead of just "System Design"). Do not include subtopics, notes, common mistakes, or teaching prompts; those will be generated by the Depth Agent later. Only generate the core task listing.
+  - Return the tasks wrapped in an object with a "tasks" array property.`
+  });
+
+  const company = session.company || 'a general tech company';
+  const role = session.role || profile || 'a software engineer';
+  const user = `Target Role: ${role}\nTarget Company: ${company}\nResume/Skills context: ${signals.join(', ')}\nBuild the tasks now.`;
+
+  const schema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      tasks: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            description: { type: Type.STRING },
+            category: { type: Type.STRING },
+            focusArea: { type: Type.STRING },
+            priority: { type: Type.INTEGER },
+            estimatedMinutes: { type: Type.INTEGER },
+            resources: { type: Type.ARRAY, items: { type: Type.STRING } }
+          },
+          required: ["title", "description", "category", "focusArea", "priority", "estimatedMinutes", "resources"]
+        }
+      }
+    },
+    required: ["tasks"]
+  };
+
+  let lastError: any;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: user }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: schema,
+        }
+      });
+
+      const response = result.response;
+      const text = response.text();
+      const args = JSON.parse(text);
+      return args.tasks || [];
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Orchestrator] Attempt ${attempt} failed:`, error);
+      if (attempt < 3) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+  }
+
+  console.error("[Orchestrator] All retry attempts failed. Gemini SDK error:", lastError);
+  throw new Error("The Agent is currently busy or offline. Please try again in a few moments.");
+}
+
 async function generateTasks(sessionId: string, signals: string[], session: ISession, profile: RoleProfileKey): Promise<ITask[]> {
   const tasks: ITask[] = [];
   const deadline = session.deadline ? new Date(session.deadline) : null;
   const now = new Date();
   const totalDays = deadline ? Math.max(1, Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 14;
-  const profileConfig = ROLE_PROFILE_LIBRARY[profile] || ROLE_PROFILE_LIBRARY.general;
-  const companyProfile = inferCompanyProfile(session.company);
-  const experienceLevel = inferExperienceLevel(session, signals);
-  const blueprint = makeTopicBlueprint(profile, companyProfile, signals, profileConfig.focusAreas, session.role, session.company, experienceLevel);
-
-  const totalMinutes = blueprint.reduce((sum, item) => sum + item.estimatedMinutes, 0);
-  const minutesPerDay = Math.max(45, Math.round(totalMinutes / totalDays));
 
   await recordSessionActivity(sessionId, {
     stage: 'agent-1-planner',
-    message: `Planner Agent ranked the highest-value interview topics for the ${profileConfig.label.toLowerCase()} profile.`,
+    message: `Planner Agent analyzing interview topics.`,
     details: signals.length > 0 ? `Primary signals: ${signals.slice(0, 12).join(', ')}` : 'Signals derived from the role, company, and goal prompt.',
     progress: 48,
   });
 
+  const rawTasks = await callTaskGeneratorLLM(session, signals, profile);
+  
+  const totalMinutes = rawTasks.reduce((sum: number, item: any) => sum + item.estimatedMinutes, 0);
+  const minutesPerDay = Math.max(45, Math.round(totalMinutes / totalDays));
+
   await recordSessionActivity(sessionId, {
     stage: 'agent-2-topic-expansion',
     message: 'Depth Agent expanded each priority task into a detailed topic tree with role-specific subtopics and study notes.',
-    details: `${blueprint.length} task blocks | ${minutesPerDay} min/day | ${totalMinutes} total minutes | ${profileConfig.label}`,
+    details: `${rawTasks.length} task blocks | ${minutesPerDay} min/day | ${totalMinutes} total minutes`,
     progress: 52,
   });
 
-  blueprint.forEach((item, idx) => {
-    const due = new Date(now.getTime() + ((idx + 1) * totalDays * 24 * 60 * 60 * 1000) / Math.max(1, blueprint.length));
-    const depth = buildTaskDepth(item, profile);
+  rawTasks.forEach((item: any, idx: number) => {
+    const due = new Date(now.getTime() + ((idx + 1) * totalDays * 24 * 60 * 60 * 1000) / Math.max(1, rawTasks.length));
     tasks.push({
       title: item.title,
       description: item.description,
-      resources: depth.resources,
+      resources: item.resources || [],
       dueDate: due,
       priority: item.priority,
       category: item.category,
       estimatedMinutes: item.estimatedMinutes,
       focusArea: item.focusArea,
-      agent: profileConfig.label,
+      agent: profile,
       contributors: MULTI_AGENT_STACK,
-      subtopics: depth.subtopics,
-      notes: depth.notes,
-      commonMistakes: depth.commonMistakes,
-      teachingPrompts: depth.teachingPrompts,
+      prepStatus: 'idle',
+      subtopics: [],
+      notes: [],
+      commonMistakes: [],
+      teachingPrompts: [],
     });
   });
 
@@ -1085,7 +803,7 @@ export async function orchestrateSession(sessionId: string) {
       agent: 'Orchestrator',
       event: 'orchestration.failed',
       stage: 'error',
-      message: err instanceof Error ? err.message : 'Orchestration failed',
+      message: 'The Agent is currently busy or offline. Please try again in a few moments.',
       sessionId,
       confidence: 0,
     });
@@ -1098,7 +816,7 @@ export async function orchestrateSession(sessionId: string) {
       $push: {
         activityLog: {
           stage: 'failed',
-          message: err instanceof Error ? err.message : 'The agent encountered an unexpected error while generating the plan.',
+          message: 'The Agent is currently busy or offline. Please try again in a few moments.',
           createdAt: new Date(),
         },
       },

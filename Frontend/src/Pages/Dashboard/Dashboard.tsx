@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import SessionIntakeModal from "@/components/SessionIntakeModal";
@@ -6,11 +6,13 @@ import {
   LayoutDashboard, CheckSquare, CalendarDays, BarChart3, 
   Settings, Bell, Search, Menu, X, Plus, 
   BrainCircuit, TrendingUp, Clock, Target, 
-  ChevronRight, PlayCircle, MoreHorizontal
+  ChevronRight, PlayCircle, MoreHorizontal, Loader2, Calendar, AlertTriangle, Trash2, Layers3
 } from "lucide-react";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from "recharts";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
 
 // --- MOCK DATA ---
 const performanceData = [
@@ -32,7 +34,58 @@ const upcomingTasks = [
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem("taskSchedulerToken");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+
+    const fetchSessions = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/sessions`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.message || "Failed to fetch preparation sessions");
+        }
+        setSessions(data.data || []);
+      } catch (err: any) {
+        setError(err.message || "Something went wrong while loading sessions");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSessions();
+  }, [navigate]);
+
+  const handleDeleteSession = async (sid: string) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this session roadmap?");
+    if (!confirmDelete) return;
+
+    try {
+      const token = localStorage.getItem("taskSchedulerToken");
+      const resp = await fetch(`${API_BASE}/api/v1/sessions/${sid}`, {
+        method: "DELETE",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || "Failed to delete session");
+      setSessions(prev => prev.filter(s => s._id !== sid));
+    } catch (err: any) {
+      alert(err.message || "Unable to delete session");
+    }
+  };
 
   return (
     <>
@@ -56,11 +109,22 @@ export default function Dashboard() {
           <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 mt-4">Menu</p>
           {[
             { icon: LayoutDashboard, label: "Dashboard", active: true },
-            { icon: CheckSquare, label: "Tasks & Roadmap" },
+            { icon: CheckSquare, label: "Tasks" },
+            { icon: Layers3, label: "Roadmap" },
             { icon: CalendarDays, label: "Calendar" },
             { icon: BarChart3, label: "Analytics" },
           ].map((item, idx) => (
-            <button key={idx} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.active ? "bg-indigo-50 text-indigo-700 font-bold" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-semibold"}`}>
+            <button 
+              key={idx} 
+              onClick={() => {
+                if (item.label === "Tasks") {
+                  navigate("/dashboard/tasks");
+                } else if (item.label === "Roadmap") {
+                  navigate("/dashboard/roadmap");
+                }
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${item.active ? "bg-indigo-50 text-indigo-700 font-bold" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-semibold"}`}
+            >
               <item.icon className={`w-5 h-5 ${item.active ? "text-indigo-600" : "text-slate-400"}`} />
               {item.label}
             </button>
@@ -192,6 +256,182 @@ export default function Dashboard() {
                   </div>
                 </motion.div>
               ))}
+            </div>
+
+            {/* Saved Preparation Sessions */}
+            <div className="bg-white border border-slate-200 rounded-3xl shadow-sm p-6 sm:p-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-900">Saved Preparation Sessions</h3>
+                  <p className="text-sm font-medium text-slate-500 mt-1">
+                    Click on any active workspace card to resume your interview prep and review task subtopics.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSessionModalOpen(true)}
+                  className="flex sm:hidden items-center justify-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-full text-sm font-bold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-colors"
+                >
+                  <Plus className="w-4.5 h-4.5" /> New Session
+                </button>
+              </div>
+
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-3" />
+                  <p className="text-sm font-semibold">Loading your preparation workspaces...</p>
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center py-10 border border-rose-100 bg-rose-50/50 rounded-2xl p-6 text-center">
+                  <AlertTriangle className="w-8 h-8 text-rose-500 mb-2" />
+                  <h4 className="text-rose-900 font-bold text-sm">Failed to Load Sessions</h4>
+                  <p className="text-rose-700 text-xs font-semibold mt-1 mb-4 max-w-md">{error}</p>
+                  <button
+                    onClick={() => {
+                      setLoading(true);
+                      setError(null);
+                      const token = localStorage.getItem("taskSchedulerToken");
+                      if (token) {
+                        fetch(`${API_BASE}/api/v1/sessions`, {
+                          headers: { Authorization: `Bearer ${token}` }
+                        })
+                          .then(res => res.json())
+                          .then(data => setSessions(data.data || []))
+                          .catch(err => setError(err.message || "Failed to load sessions"))
+                          .finally(() => setLoading(false));
+                      }
+                    }}
+                    className="bg-rose-600 text-white font-bold text-xs px-4 py-2 rounded-xl hover:bg-rose-700 transition-colors"
+                  >
+                    Retry Loading
+                  </button>
+                </div>
+              ) : sessions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 px-4 border border-dashed border-slate-200 bg-slate-50/30 rounded-2xl text-center">
+                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full mb-4">
+                    <Target className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-slate-900 font-extrabold text-base">No Saved Sessions Found</h4>
+                  <p className="text-slate-500 text-sm font-medium mt-1 mb-6 max-w-sm">
+                    Generate your first multi-agent roadmap. We'll track your resume, target role, and interview deadlines.
+                  </p>
+                  <button
+                    onClick={() => setSessionModalOpen(true)}
+                    className="bg-indigo-600 text-white font-bold text-sm px-6 py-2.5 rounded-full shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> Start Your First Session
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {sessions.map((session, index) => {
+                    const isCompleted = session.status === "completed";
+                    const isRunning = session.status === "running" || session.status === "pending";
+                    const isFailed = session.status === "failed";
+                    const formattedDate = session.createdAt 
+                      ? new Date(session.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                      : 'Recently';
+                    
+                    const deadlineDate = session.deadline
+                      ? new Date(session.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                      : null;
+
+                    return (
+                      <motion.div
+                        key={session._id}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        onClick={() => navigate(`/dashboard/tasks/${session._id}`)}
+                        className="bg-white hover:bg-slate-50/30 border border-slate-200/80 hover:border-indigo-300 hover:shadow-lg rounded-2xl p-5 cursor-pointer relative overflow-hidden transition-all duration-300 group flex flex-col justify-between min-h-[190px]"
+                      >
+                        {/* Status Left Accent Bar */}
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                          isCompleted ? 'bg-emerald-500' : isFailed ? 'bg-rose-500' : 'bg-amber-500'
+                        }`} />
+
+                        <div className="pl-2 flex-1">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="min-w-0 pr-2">
+                              <h4 className="font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors text-base truncate max-w-[140px] md:max-w-[160px]">
+                                {session.role || "Custom Preparation"}
+                              </h4>
+                              <p className="text-xs font-semibold text-slate-500 truncate max-w-[130px] md:max-w-[150px]">
+                                {session.company ? `at ${session.company}` : "Personalized Focus"}
+                              </p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {formattedDate}
+                              </span>
+                              <button
+                                title="Delete Session"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSession(session._id);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 duration-200"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Status and Competency Badges */}
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                              isCompleted 
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                : isFailed
+                                ? 'bg-rose-50 text-rose-700 border border-rose-100'
+                                : 'bg-amber-50 text-amber-700 border border-amber-100 animate-pulse'
+                            }`}>
+                              {session.status}
+                            </span>
+                            {session.competency && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 border border-slate-100 capitalize">
+                                {session.competency}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Progress Bar & Details */}
+                        <div className="pl-2 mt-auto pt-2 border-t border-slate-100">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-1.5">
+                            <span className="flex items-center gap-1.5">
+                              <CheckSquare className="w-3.5 h-3.5 text-slate-400" />
+                              {session.tasks?.length || 0} core tasks
+                            </span>
+                            <span>{session.progress || 0}%</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-3">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                isCompleted ? 'bg-emerald-500' : isFailed ? 'bg-rose-500' : 'bg-amber-500'
+                              }`}
+                              style={{ width: `${session.progress || 0}%` }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
+                            {deadlineDate ? (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3.5 h-3.5" />
+                                Prep by {deadlineDate}
+                              </span>
+                            ) : (
+                              <span />
+                            )}
+                            <span className="text-indigo-600 font-extrabold group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
+                              Resume <ChevronRight className="w-3.5 h-3.5" />
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Main Layout Grid: Chart + Upcoming */}

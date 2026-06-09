@@ -17,6 +17,7 @@ import { initializeAllAgents } from './lib/agent-registry';
 import authRoutes from './routes/auth.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import sessionRoutes from './routes/session.routes';
+import roadmapRoutes from './routes/roadmap.routes';
 
 // Initialize Express app
 const app = express();
@@ -76,6 +77,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 app.use('/api/v1/auth', limiter, authLimiter, authRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/sessions', sessionRoutes);
+app.use('/api/v1/roadmaps', roadmapRoutes);
 
 // API Root endpoint
 app.get('/api', (req: Request, res: Response) => {

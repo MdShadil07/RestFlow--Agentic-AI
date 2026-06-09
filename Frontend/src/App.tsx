@@ -6,6 +6,8 @@ import Dashboard from "./Pages/Dashboard/Dashboard";
 import NewSession from "./Pages/Dashboard/NewSession";
 import TaskSessionPage from "./Pages/Dashboard/TaskSessionPage";
 import ResearchPage from "./Pages/Dashboard/ResearchPage";
+import RoadmapPage from "./Pages/Dashboard/RoadmapPage";
+import TasksPage from "./Pages/Dashboard/TasksPage";
 
 export default function App() {
   return (
@@ -15,8 +17,10 @@ export default function App() {
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/new-session" element={<NewSession />} />
+      <Route path="/dashboard/tasks" element={<TasksPage />} />
       <Route path="/dashboard/tasks/:id" element={<TaskSessionPage />} />
       <Route path="/dashboard/research/:id" element={<ResearchPage />} />
+      <Route path="/dashboard/roadmap" element={<RoadmapPage />} />
     </Routes>
   );
 }
